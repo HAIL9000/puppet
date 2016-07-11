@@ -23,7 +23,7 @@ Puppet::Type.type(:mount).provide(
   when "Solaris"
     @fields = [:device, :blockdevice, :name, :fstype, :pass, :atboot, :options]
   else
-    @fields = [:device, :name, :fstype, :options, :dump, :pass]
+    @fields = [:device, :name, :fstype, :options, :dump, :pass, :live_options]
   end
 
   if Facter.value(:osfamily) == "AIX"
@@ -232,6 +232,7 @@ Puppet::Type.type(:mount).provide(
     #   to fstab we need to know if the device was mounted before)
     mountinstances.each do |hash|
       if mount = resources[hash[:name]]
+        mount.provider.set(:live_options => hash[:live_options])
         case mount.provider.get(:ensure)
         when :absent  # Mount not in fstab
           mount.provider.set(:ensure => :ghost)
@@ -254,6 +255,7 @@ Puppet::Type.type(:mount).provide(
       else
         / on (\S*)/
     end
+
     instances = []
     mount_output = mountcmd.split("\n")
     if mount_output.length >= 2 and mount_output[1] =~ /^[- \t]*$/
@@ -264,7 +266,8 @@ Puppet::Type.type(:mount).provide(
     end
     mount_output.each do |line|
       if match = regex.match(line) and name = match.captures.first
-        instances << {:name => name, :mounted => :yes} # Only :name is important here
+        options = line[/\(.*\)/].tr('()', '')
+        instances << {:name => name, :mounted => :yes, :live_options => options}
       else
         raise Puppet::Error, "Could not understand line #{line} from mount output"
       end
